@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 """
-HackerOne Research Tool - CLI версия
+HackerOne Research Tool
 
-Инструмент для сбора и анализа данных с платформы HackerOne.
-Собирает данные о хакерах из лидерборда и Hacktivity, обрабатывает,
-анализирует и экспортирует результаты в JSON/CSV форматы.
+Сбор и анализ данных о багхантерах HackerOne для проектирования процессов
+привлечения на платформу Standoff.
 
-Пример использования:
-    python main.py --limit 20 --reports 30 --export json csv
-
-Автор: Security Research Team
-Версия: 3.0
+Использование:
+    python main.py --limit 50 --reports 100
+    python main.py --headless false
+    python main.py --export json csv excel
+    python main.py --category high_critical --limit 30
 """
 import sys
 import argparse
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
-# Добавляем корень проекта в path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
@@ -28,113 +26,103 @@ from src.clients.hackerone_scraper import HackerOneScraper, ChromeNotAvailableEr
 from src.collectors.data_collectors import LeaderboardCollector, HacktivityCollector
 from src.processors.data_processors import DataNormalizer, DataEnricher, DataAggregator
 from src.analyzers.data_analyzers import HackerAnalyzer, PortfolioAnalyzer
-from src.exporters.data_exporters import JSONExporter, CSVExporter
+from src.exporters.data_exporters import JSONExporter, CSVExporter, ExcelExporter
 from src.utils.helpers import setup_logging, print_header, print_table, create_directories
-from colorama import Fore, Style
+from src.models.entities import LeaderboardCategory
 
 
 def parse_args():
-    """Парсинг аргументов командной строки"""
     parser = argparse.ArgumentParser(
-        description="🔍 HackerOne Research Tool - Сбор и анализ данных",
+        description="HackerOne Research Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Примеры использования:
+Примеры:
   %(prog)s --limit 20 --reports 30
   %(prog)s --headless false
-  %(prog)s --export json csv
+  %(prog)s --export json csv excel
+  %(prog)s --category high_critical --limit 30
         """
     )
 
-    # Настройки сбора
     parser.add_argument("--limit", type=int, default=20, help="Лимит хакеров")
     parser.add_argument("--reports", type=int, default=30, help="Лимит отчётов")
     parser.add_argument("--headless", type=str, default="true",
-                        choices=["true", "false"], help="Запуск браузера в фоне")
-
-    # Настройки экспорта
+                        choices=["true", "false"], help="Режим браузера")
     parser.add_argument("--export", nargs='+', default=["json", "csv"],
-                        choices=["json", "csv"], help="Форматы экспорта")
+                        choices=["json", "csv", "excel"], help="Форматы экспорта")
     parser.add_argument("--output", type=str, default="data/processed",
-                        help="Папка для сохранения результатов")
-
-    # Логирование
+                        help="Папка для результатов")
     parser.add_argument("--log-level", type=str, default="INFO",
                         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                         help="Уровень логирования")
+    parser.add_argument("--category", type=str, default="reputation",
+                        choices=["reputation", "high_critical", "owasp", "country", 
+                                "asset_type", "up_and_comers", "upvotes"],
+                        help="Категория лидерборда")
+    parser.add_argument("--include-links", action="store_true", default=True,
+                        help="Включить гиперссылки на профили в Excel")
+    parser.add_argument("--use-advanced-rating", action="store_true", default=False,
+                        help="Использовать расширенную формулу рейтинга")
 
     return parser.parse_args()
 
 
 def main():
-    """Точка входа CLI"""
     args = parse_args()
 
-    # Инициализация конфигурации
     config = AppConfig()
     create_directories(config.base_dir)
 
-    # Настройка логирования
     log_level = getattr(logging, args.log_level.upper(), logging.INFO)
     logger, log_file = setup_logging(config.logs_dir, log_level)
 
     headless = args.headless.lower() == "true"
 
-    print_header("🔍 HACKERONE RESEARCH TOOL v3.0")
-    print(f"{Fore.CYAN}📊 СБОР ДАННЫХ ЧЕРЕЗ СКРАПИНГ/ПАРСИНГ{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}⚠ Соблюдайте условия использования HackerOne{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}⚠ Rate limiting включён для защиты от блокировок{Style.RESET_ALL}")
-    print(f"\n{Fore.GREEN}📁 Лог-файл: {log_file}{Style.RESET_ALL}")
-    print(f"{Fore.GREEN}📁 Папка логов: {config.logs_dir}{Style.RESET_ALL}\n")
+    print_header("HACKERONE RESEARCH TOOL")
+    print(f"СБОР ДАННЫХ ЧЕРЕЗ СКРАПИНГ")
+    print(f"Соблюдайте условия использования HackerOne")
+    print(f"\nЛог-файл: {log_file}\n")
 
-    logger.info(f"Запуск: limit={args.limit}, reports={args.reports}, headless={headless}")
+    logger.info(f"Запуск: limit={args.limit}, reports={args.reports}, headless={headless}, category={args.category}")
 
     scraper = None
 
     try:
-        # 1. Инициализация скрапера с обработкой отсутствия Chrome
         print_header("1. ИНИЦИАЛИЗАЦИЯ")
         try:
             scraper = HackerOneScraper(headless=headless)
-            print(f"{Fore.GREEN}✓ Браузер инициализирован{Style.RESET_ALL}")
+            print(f"Браузер инициализирован")
             logger.info("Браузер успешно инициализирован")
         except ChromeNotAvailableError as e:
-            print(f"{Fore.RED}❌ Ошибка: Google Chrome не найден{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}💡 Рекомендации:{Style.RESET_ALL}")
-            print("  - Установите Google Chrome: https://www.google.com/chrome/")
-            print("  - Или используйте режим без браузера (если поддерживается)")
-            print(f"\n{Fore.CYAN}📄 Детали ошибки: {str(e)}{Style.RESET_ALL}")
+            print(f"Ошибка: Google Chrome не найден")
+            print(f"Установите Chrome: https://www.google.com/chrome/")
+            print(f"\nДетали: {str(e)}")
             logger.error(f"Chrome не доступен: {e}")
             return
         except Exception as e:
-            print(f"{Fore.RED}❌ Ошибка инициализации браузера: {str(e)}{Style.RESET_ALL}")
-            logger.error(f"Ошибка инициализации браузера: {e}", exc_info=True)
+            print(f"Ошибка инициализации: {str(e)}")
+            logger.error(f"Ошибка инициализации: {e}", exc_info=True)
             return
 
-        # 2. Сбор данных
         print_header("2. СБОР ДАННЫХ")
         leaderboard_collector = LeaderboardCollector(scraper)
         hacktivity_collector = HacktivityCollector(scraper)
 
-        hackers = leaderboard_collector.collect(limit=args.limit)
+        hackers = leaderboard_collector.collect(limit=args.limit, category=args.category)
         reports = hacktivity_collector.collect(limit=args.reports)
 
-        print(f"{Fore.GREEN}✓ Собрано хакеров: {len(hackers)}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}✓ Собрано отчётов: {len(reports)}{Style.RESET_ALL}")
+        print(f"Собрано хакеров: {len(hackers)}")
+        print(f"Собрано отчётов: {len(reports)}")
 
         logger.info(f"Собрано хакеров: {len(hackers)}, отчётов: {len(reports)}")
 
         if len(hackers) == 0:
-            print(f"\n{Fore.RED}⚠ Не удалось собрать данные!{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}Проверьте:{Style.RESET_ALL}")
-            print("  - Подключение к интернету")
-            print("  - Доступность hackerone.com")
-            print("  - Установленный Google Chrome")
-            print(f"\n{Fore.YELLOW}📁 Полные логи: {log_file}{Style.RESET_ALL}")
-            logger.error("Не удалось собрать данные — лидерборд пуст")
+            print(f"\nНе удалось собрать данные!")
+            print(f"Проверьте подключение и наличие Chrome")
+            print(f"\nЛоги: {log_file}")
+            logger.error("Не удалось собрать данные")
             return
 
-        # 3. Обработка данных с обработкой ошибок
         print_header("3. ОБРАБОТКА ДАННЫХ")
         try:
             normalizer = DataNormalizer(config)
@@ -142,15 +130,13 @@ def main():
 
             hackers = normalizer.normalize(hackers)
             hackers = enricher.enrich(hackers)
-            print(f"{Fore.GREEN}✓ Нормализовано: {len(hackers)}{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}✓ Обогащено метриками{Style.RESET_ALL}")
+            print(f"Нормализовано: {len(hackers)}")
+            print(f"Обогащено метриками")
             logger.info(f"Обработано {len(hackers)} профилей")
         except Exception as e:
-            logger.error(f"Ошибка обработки данных: {e}", exc_info=True)
-            print(f"{Fore.RED}⚠ Ошибка обработки данных: {str(e)}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}💡 Продолжаем с исходными данными{Style.RESET_ALL}")
+            logger.error(f"Ошибка обработки: {e}", exc_info=True)
+            print(f"Ошибка обработки: {str(e)}")
 
-        # 4. Анализ с обработкой ошибок
         print_header("4. АНАЛИЗ")
         try:
             analyzer = HackerAnalyzer()
@@ -161,19 +147,18 @@ def main():
             tier_dist = DataAggregator.aggregate_by_tier(hackers)
             stats = DataAggregator.calculate_stats(hackers)
 
-            print(f"{Fore.GREEN}✓ Проанализировано: {len(analyses)}{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}✓ Распределение по тирам: {tier_dist}{Style.RESET_ALL}")
-            print(f"{Fore.GREEN}✓ Средний value_score: {stats.get('avg_value_score', 0)}{Style.RESET_ALL}")
+            print(f"Проанализировано: {len(analyses)}")
+            print(f"Распределение по тирам: {tier_dist}")
+            print(f"Средний value_score: {stats.get('avg_value_score', 0)}")
             logger.info(f"Анализ завершён. Tier distribution: {tier_dist}")
         except Exception as e:
             logger.error(f"Ошибка анализа: {e}", exc_info=True)
-            print(f"{Fore.RED}⚠ Ошибка анализа: {str(e)}{Style.RESET_ALL}")
+            print(f"Ошибка анализа: {str(e)}")
             analyses = []
             skills_dist = {}
             tier_dist = {}
             stats = {}
 
-        # 5. Экспорт с контекстными менеджерами и обработкой ошибок
         print_header("5. ЭКСПОРТ")
         output_dir = Path(args.output)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -206,15 +191,23 @@ def main():
                     if reports_data:
                         exported_files.append(csv_exporter.export(reports_data, f"reports_{timestamp}"))
 
-            print(f"{Fore.GREEN}✓ Экспортировано файлов: {len(exported_files)}{Style.RESET_ALL}")
+            if "excel" in args.export:
+                excel_exporter = ExcelExporter(output_dir)
+                with excel_exporter:
+                    if hackers_data:
+                        exported_files.append(excel_exporter.export(hackers_data, f"hackers_{timestamp}", 
+                                                                   link_column="profile_url" if args.include_links else None))
+                    if analyses_data:
+                        exported_files.append(excel_exporter.export(analyses_data, f"analyses_{timestamp}", link_column=None))
+
+            print(f"Экспортировано файлов: {len(exported_files)}")
             for f in exported_files:
-                print(f"  📁 {f}")
+                print(f"  {f}")
                 logger.info(f"Экспорт: {f}")
         except Exception as e:
             logger.error(f"Ошибка экспорта: {e}", exc_info=True)
-            print(f"{Fore.RED}⚠ Ошибка экспорта: {str(e)}{Style.RESET_ALL}")
+            print(f"Ошибка экспорта: {str(e)}")
 
-        # 6. Результаты с обработкой пустых данных
         print_header("6. РЕЗУЛЬТАТЫ")
         if analyses:
             headers = ["Username", "Tier", "Value", "Activity", "Priority"]
@@ -222,52 +215,47 @@ def main():
                     for a in analyses[:10]]
             print_table(headers, rows)
         else:
-            print(f"{Fore.YELLOW}⚠ Нет данных анализа для отображения{Style.RESET_ALL}")
+            print(f"Нет данных анализа")
 
-        # 7. Рекомендации
-        print_header("7. РЕКОМЕНДАЦИИ ДЛЯ STANDOFF")
+        print_header("7. РЕКОМЕНДАЦИИ")
         elite_count = tier_dist.get("elite", 0) if tier_dist else 0
         premium_count = tier_dist.get("premium", 0) if tier_dist else 0
 
         if elite_count > 0:
-            print(f"{Fore.GREEN}✓ Priority Recruitment: {elite_count} Elite хакеров{Style.RESET_ALL}")
+            print(f"Priority Recruitment: {elite_count} Elite")
         if premium_count > 0:
-            print(f"{Fore.YELLOW}✓ Standard Recruitment: {premium_count} Premium хакеров{Style.RESET_ALL}")
+            print(f"Standard Recruitment: {premium_count} Premium")
         if skills_dist:
-            print(f"{Fore.CYAN}✓ Skills Focus: {list(skills_dist.keys())[:3]}{Style.RESET_ALL}")
+            print(f"Skills Focus: {list(skills_dist.keys())[:3]}")
 
         logger.info(f"Рекомендации: Elite={elite_count}, Premium={premium_count}")
 
-        # 8. Выводы
         print_header("8. ВЫВОДЫ")
-        print(f"📊 Всего хакеров в выборке: {len(hackers)}")
-        print(f"📊 Elite/Premium: {elite_count}/{premium_count}")
-        print(f"📊 Средний Value Score: {stats.get('avg_value_score', 0) if stats else 0}")
-        print(f"📊 Отчётов проанализировано: {len(reports)}")
-        print(f"\n{Fore.GREEN}📁 Лог-файл для отчёта об ошибках: {log_file}{Style.RESET_ALL}")
+        print(f"Всего хакеров: {len(hackers)}")
+        print(f"Elite/Premium: {elite_count}/{premium_count}")
+        print(f"Средний Value Score: {stats.get('avg_value_score', 0) if stats else 0}")
+        print(f"Отчётов проанализировано: {len(reports)}")
+        print(f"\nЛог-файл: {log_file}")
 
     except KeyboardInterrupt:
-        logger.warning("⚠ Прервано пользователем")
-        print(f"\n{Fore.YELLOW}💡 Работа прервана. Данные могли быть сохранены частично.{Style.RESET_ALL}")
+        logger.warning("Прервано пользователем")
+        print(f"\nРабота прервана")
         sys.exit(130)
     except Exception as e:
-        logger.error(f"❌ Критическая ошибка: {str(e)}", exc_info=True)
-        print(f"\n{Fore.RED}❌ Произошла ошибка: {str(e)}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}📁 Полные логи ошибки: {log_file}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}💡 Отправьте этот файл для диагностики{Style.RESET_ALL}")
+        logger.error(f"Критическая ошибка: {str(e)}", exc_info=True)
+        print(f"\nОшибка: {str(e)}")
+        print(f"Логи: {log_file}")
         sys.exit(1)
     finally:
-        # Корректное закрытие ресурсов с обработкой ошибок
         if scraper:
             try:
                 scraper.close()
-                logger.info("Браузер корректно закрыт")
+                logger.info("Браузер закрыт")
             except Exception as e:
-                logger.error(f"Ошибка при закрытии браузера: {e}")
+                logger.error(f"Ошибка при закрытии: {e}")
 
-        print_header("✅ ЗАВЕРШЕНО")
-        print(f"{Fore.GREEN}📁 Логи сохранены в: {config.logs_dir}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}📄 Последний лог: {log_file}{Style.RESET_ALL}")
+        print_header("ЗАВЕРШЕНО")
+        print(f"Логи: {config.logs_dir}")
 
 
 if __name__ == "__main__":
