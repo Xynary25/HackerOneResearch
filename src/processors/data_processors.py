@@ -9,9 +9,11 @@ logger = logging.getLogger(__name__)
 class DataNormalizer:
     """
     Нормализация данных
-    ✅ Приводит значения к стандартному диапазону
-    ✅ Заполняет пропуски
-    ✅ Удаляет дубликаты
+
+    ✅ Что делает:
+    - Приводит значения к стандартному диапазону
+    - Заполняет пропуски
+    - Валидирует типы данных
     """
 
     def __init__(self, config: AppConfig):
@@ -32,6 +34,15 @@ class DataNormalizer:
             # Impact: не отрицательное
             profile.impact = max(0, profile.impact)
 
+            # Total bounties: не отрицательное
+            profile.total_bounties = max(0.0, profile.total_bounties)
+
+            # Total reports: не отрицательное
+            profile.total_reports = max(0, profile.total_reports)
+
+            # Accepted reports: не отрицательное
+            profile.accepted_reports = max(0, profile.accepted_reports)
+
         logger.info(f"✓ Нормализовано {len(profiles)} профилей")
         return profiles
 
@@ -39,8 +50,11 @@ class DataNormalizer:
 class DataEnricher:
     """
     Обогащение данных вычисляемыми метриками
-    ✅ Рассчитывает value_score, activity_score, quality_score
-    ✅ Определяет tier хакера
+
+    ✅ Формулы:
+    - value_score = 0.40*rep + 0.30*signal + 0.30*impact
+    - activity_score = reports*0.4 + acceptance*40 + verified*20
+    - quality_score = acceptance*50 + bounty*30 + impact*20
     """
 
     def __init__(self, config: AppConfig):
@@ -77,7 +91,7 @@ class DataEnricher:
         На основе активности хакера
         """
         score = (
-                profile.total_reports * 0.4 +
+                min(profile.total_reports / 100, 1.0) * 40 +
                 profile.acceptance_rate * 40 +
                 (1 if profile.is_verified else 0) * 20
         )
@@ -131,10 +145,12 @@ class DataEnricher:
 class DataFilter:
     """
     Фильтрация данных
-    ✅ По tier
-    ✅ По минимальному score
-    ✅ По стране
-    ✅ По активности
+
+    ✅ Фильтры:
+    - По tier (elite, premium, standard, novice)
+    - По минимальному score
+    - По стране
+    - По активности (минимум отчётов)
     """
 
     def __init__(self, config: AppConfig):
@@ -188,9 +204,11 @@ class DataFilter:
 class DataAggregator:
     """
     Агрегация данных
-    ✅ Группировка по tier
-    ✅ Группировка по стране
-    ✅ Расчёт статистик
+
+    ✅ Методы:
+    - Группировка по tier
+    - Группировка по стране
+    - Расчёт статистик (среднее, всего)
     """
 
     @staticmethod
@@ -212,6 +230,15 @@ class DataAggregator:
         return result
 
     @staticmethod
+    def aggregate_by_skills(profiles: List[HackerProfile]) -> Dict[str, int]:
+        """Группировка по навыкам"""
+        result = {}
+        for p in profiles:
+            for skill in p.skills:
+                result[skill] = result.get(skill, 0) + 1
+        return dict(sorted(result.items(), key=lambda x: x[1], reverse=True))
+
+    @staticmethod
     def calculate_stats(profiles: List[HackerProfile]) -> Dict[str, float]:
         """Расчёт статистик по выборке"""
         if not profiles:
@@ -230,5 +257,7 @@ class DataAggregator:
                 sum(p.quality_score for p in profiles) / len(profiles),
                 2
             ),
-            "total_hackers": len(profiles)
+            "total_hackers": len(profiles),
+            "max_value_score": round(max(p.value_score for p in profiles), 2),
+            "min_value_score": round(min(p.value_score for p in profiles), 2),
         }

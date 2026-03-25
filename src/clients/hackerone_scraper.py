@@ -161,7 +161,7 @@ class HackerOneScraper:
         logger.info(f"📊 Сбор лидерборда: {limit} хакеров")
 
         hackers = []
-        seen_usernames: Set[str] = set()
+        seen_usernames: Set[str] = set()  # ✅ ИСПРАВЛЕНО: определено здесь
 
         # Исключаем служебные слова
         excluded = {
@@ -197,20 +197,20 @@ class HackerOneScraper:
                 if len(hackers) >= limit:
                     break
 
-                hacker_data = self._parse_leaderboard_row(row)
+                # ✅ ИСПРАВЛЕНО: передаём seen_usernames в метод
+                hacker_data = self._parse_leaderboard_row(row, seen_usernames, excluded)
 
                 if hacker_data:
                     username = hacker_data['username']
                     if username and username not in seen_usernames:
-                        if username not in excluded and len(username) >= 3:
-                            seen_usernames.add(username)
-                            hackers.append(hacker_data)
-                            logger.debug(
-                                f"✓ Найден хакер: {username} "
-                                f"(rep: {hacker_data['reputation']}, "
-                                f"signal: {hacker_data['signal']}, "
-                                f"impact: {hacker_data['impact']})"
-                            )
+                        seen_usernames.add(username)
+                        hackers.append(hacker_data)
+                        logger.debug(
+                            f"✓ Найден хакер: {username} "
+                            f"(rep: {hacker_data['reputation']}, "
+                            f"signal: {hacker_data['signal']}, "
+                            f"impact: {hacker_data['impact']})"
+                        )
 
             logger.info(f"✓ Собрано {len(hackers)} уникальных профилей из лидерборда")
 
@@ -221,17 +221,13 @@ class HackerOneScraper:
 
         return hackers[:limit]
 
-    def _parse_leaderboard_row(self, row) -> Optional[Dict]:
+    def _parse_leaderboard_row(self, row, seen_usernames: Set[str], excluded: Set[str]) -> Optional[Dict]:
         """
         Парсинг строки таблицы лидерборда
 
         Структура HTML (из debug):
         <div role="row" data-testid="table-row-Z2lkOi8vaGFja2Vyb25l...">
-            <div role="cell" class="TableCell-module_u1-table__cell__HTcd7">
-                <div class="TableCell-module_u1-table__cell-inner-container__8-nd1">
-                    <a href="/m0chan">m0chan</a>
-                </div>
-            </div>
+            <div role="cell">← Username (ссылка /username)</div>
             <div role="cell">7771</div>  ← Reputation
             <div role="cell">6.76</div>  ← Signal
             <div role="cell">14.87</div> ← Impact
@@ -253,10 +249,18 @@ class HackerOneScraper:
             username = link.get_text(strip=True)
 
             # Извлекаем username из href если текст пустой
-            if not username and '/leaderboard' not in href:
+            if not username and href.startswith('/'):
                 username = href.lstrip('/').split('?')[0]
 
+            # Проверка на валидность username
             if not username or len(username) < 3:
+                return None
+
+            if username in excluded:
+                return None
+
+            # ✅ ИСПРАВЛЕНО: проверка на дубликаты здесь
+            if username in seen_usernames:
                 return None
 
             # Ячейка 1: Reputation
@@ -300,12 +304,12 @@ class HackerOneScraper:
 
             return {
                 'username': username,
-                'rank': len(seen_usernames) + 1 if 'seen_usernames' in locals() else 0,
+                'rank': len(seen_usernames) + 1,
                 'reputation': reputation,
                 'signal': signal,
                 'impact': impact,
                 'country': None,
-                'is_verified': reputation > 5000,  # Предполагаем верификацию для топ хакеров
+                'is_verified': reputation > 5000,
                 'total_bounties': 0.0,
                 'total_reports': 0,
                 'accepted_reports': 0,
@@ -356,7 +360,7 @@ class HackerOneScraper:
                         if report_id and report_id not in seen_ids:
                             seen_ids.add(report_id)
 
-                            # Пытаемся извлечь хакера и программу
+                            # Пытаемся извлечь хакера и программу из родительских элементов
                             parent_row = link.find_parent(
                                 'div',
                                 {'role': 'row'}
@@ -369,9 +373,7 @@ class HackerOneScraper:
                                 if len(cells) >= 3:
                                     hacker_cell = cells[1].find('a', href=True)
                                     if hacker_cell:
-                                        hacker = hacker_cell.get_text(
-                                            strip=True
-                                        ).lstrip('@')
+                                        hacker = hacker_cell.get_text(strip=True).lstrip('@')
 
                                     if len(cells) > 2:
                                         program = cells[2].get_text(strip=True)

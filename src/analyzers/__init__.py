@@ -1,3 +1,13 @@
-from src.analyzers.data_analyzers import HackerAnalyzer, PortfolioAnalyzer, ReportAnalyzer
+from src.analyzers.data_analyzers import (
+    HackerAnalyzer,
+    PortfolioAnalyzer,
+    ReportAnalyzer,
+    RecruitmentAnalyzer
+)
 
-__all__ = ["HackerAnalyzer", "PortfolioAnalyzer", "ReportAnalyzer"]
+__all__ = [
+    "HackerAnalyzer",
+    "PortfolioAnalyzer",
+    "ReportAnalyzer",
+    "RecruitmentAnalyzer"
+]
