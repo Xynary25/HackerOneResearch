@@ -9,226 +9,202 @@ try:
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
     from openpyxl.utils import get_column_letter
-    from openpyxl.worksheet.hyperlink import Hyperlink
-
+    from openpyxl.worksheet.table import Table, TableStyleInfo
     EXCEL_AVAILABLE = True
 except ImportError:
     EXCEL_AVAILABLE = False
-    logging.warning("openpyxl не установлен — Excel экспорт недоступен")
+    logging.warning("⚠ openpyxl не установлен — Excel экспорт недоступен")
+    logging.warning("💡 Установите: pip install openpyxl")
 
 logger = logging.getLogger(__name__)
 
 
 class JSONExporter:
-    """Экспорт данных в формат JSON с поддержкой контекстного менеджера"""
-    
-    def __init__(self, output_dir: Path, indent: int = 2, ensure_ascii: bool = False):
+    """Экспорт данных в JSON формат"""
+
+    def __init__(self, output_dir: Path):
         self.output_dir = output_dir
-        self.indent = indent
-        self.ensure_ascii = ensure_ascii
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._file_handle = None
 
-    def export(self, data: List[Dict], filename: str) -> str:
-        filepath = self.output_dir / f"{filename}.json"
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=self.indent, ensure_ascii=self.ensure_ascii, default=str)
-        logger.info(f"Export JSON: {filepath}")
-        return str(filepath)
+    def export(self, data: List[Dict], filename: str) -> Optional[str]:
+        if not data:
+            logger.warning(f"⚠ Нет данных для экспорта JSON: {filename}")
+            return None
 
-    def __enter__(self):
-        """Контекстный менеджер: вход"""
-        return self
+        try:
+            filepath = self.output_dir / f"{filename}.json"
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Контекстный менеджер: выход"""
-        pass
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(
+                    data,
+                    f,
+                    indent=2,
+                    ensure_ascii=False,
+                    default=str
+                )
+
+            logger.info(f"📁 Экспорт JSON: {filepath} ({len(data)} записей)")
+            return str(filepath)
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка экспорта JSON {filename}: {e}")
+            return None
 
 
 class CSVExporter:
-    """Экспорт данных в формат CSV с поддержкой контекстного менеджера"""
-    
-    def __init__(self, output_dir: Path, delimiter: str = ","):
+    """Экспорт данных в CSV формат"""
+
+    def __init__(self, output_dir: Path):
         self.output_dir = output_dir
-        self.delimiter = delimiter
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._file_handle = None
 
-    def export(self, data: List[Dict], filename: str) -> str:
+    def export(self, data: List[Dict], filename: str) -> Optional[str]:
         if not data:
-            logger.warning("No data for CSV export")
-            return ""
-        filepath = self.output_dir / f"{filename}.csv"
-        fieldnames = list(data[0].keys())
-        with open(filepath, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=self.delimiter)
-            writer.writeheader()
-            writer.writerows(data)
-        logger.info(f"Export CSV: {filepath}")
-        return str(filepath)
+            logger.warning(f"⚠ Нет данных для экспорта CSV: {filename}")
+            return None
 
-    def __enter__(self):
-        """Контекстный менеджер: вход"""
-        return self
+        try:
+            filepath = self.output_dir / f"{filename}.csv"
+            fieldnames = list(data[0].keys())
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Контекстный менеджер: выход"""
-        pass
+            with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.DictWriter(
+                    f,
+                    fieldnames=fieldnames,
+                    quoting=csv.QUOTE_MINIMAL
+                )
+                writer.writeheader()
+                writer.writerows(data)
+
+            logger.info(f"📁 Экспорт CSV: {filepath} ({len(data)} записей)")
+            return str(filepath)
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка экспорта CSV {filename}: {e}")
+            return None
 
 
 class ExcelExporter:
-    """Экспорт в Excel с гиперссылками на профили и авто-форматированием"""
+    """Экспорт данных в Excel формат (XLSX)"""
 
-    def __init__(self, output_dir: Path, auto_width: bool = True, max_column_width: int = 50):
+    def __init__(self, output_dir: Path):
         self.output_dir = output_dir
-        self.auto_width = auto_width
-        self.max_column_width = max_column_width
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-        self.header_font = Font(bold=True, color="FFFFFF")
-        self.header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+
+        self.header_font = Font(bold=True, color="FFFFFF", size=12)
+        self.header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         self.header_alignment = Alignment(horizontal="center", vertical="center")
-        
-        thin_border = Border(
+
+        self.cell_font = Font(size=11)
+        self.cell_alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+        self.border = Border(
             left=Side(style='thin'),
             right=Side(style='thin'),
             top=Side(style='thin'),
             bottom=Side(style='thin')
         )
-        self.cell_alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
-    def _sanitize_value(self, value: Any) -> Any:
-        """Конвертация значений для Excel"""
-        if value is None:
-            return ""
-        if isinstance(value, list):
-            return ", ".join(str(item) for item in value) if value else ""
-        if isinstance(value, dict):
-            return json.dumps(value, ensure_ascii=False)
-        if isinstance(value, (int, float, str, bool)):
-            return value
-        if isinstance(value, datetime):
-            return value.strftime("%Y-%m-%d %H:%M:%S")
-        return str(value)
-
-    def export(self, data: List[Dict], filename: str, link_column: Optional[str] = "profile_url") -> str:
+    def export(self, data: List[Dict], filename: str) -> Optional[str]:
         if not EXCEL_AVAILABLE:
-            logger.warning("Excel export unavailable — install openpyxl")
-            return ""
+            logger.error("❌ Excel экспорт недоступен — установите openpyxl")
+            logger.error("💡 Команда: pip install openpyxl")
+            return None
 
         if not data:
-            logger.warning("No data for Excel export")
-            return ""
-
-        filepath = self.output_dir / f"{filename}.xlsx"
+            logger.warning(f"⚠ Нет данных для экспорта Excel: {filename}")
+            return None
 
         try:
+            filepath = self.output_dir / f"{filename}.xlsx"
+
             wb = Workbook()
             ws = wb.active
-            ws.title = "HackerOne Data"[:31]
+            ws.title = filename[:31]
 
             headers = list(data[0].keys())
-            
-            for col, header in enumerate(headers, 1):
-                cell = ws.cell(row=1, column=col, value=str(header))
+
+            for col_num, header in enumerate(headers, 1):
+                cell = ws.cell(row=1, column=col_num, value=header)
                 cell.font = self.header_font
                 cell.fill = self.header_fill
                 cell.alignment = self.header_alignment
+                cell.border = self.border
 
-            link_col_idx = headers.index(link_column) + 1 if link_column in headers else None
+            for row_num, row_data in enumerate(data, 2):
+                for col_num, header in enumerate(headers, 1):
+                    value = row_data.get(header, "")
 
-            for row_idx, row_data in enumerate(data, 2):
-                for col_idx, header in enumerate(headers, 1):
-                    value = row_data.get(header, '')
-                    sanitized_value = self._sanitize_value(value)
-                    cell = ws.cell(row=row_idx, column=col_idx, value=sanitized_value)
+                    if isinstance(value, (list, dict)):
+                        value = str(value)
+                    elif value is None:
+                        value = ""
+
+                    cell = ws.cell(row=row_num, column=col_num, value=value)
+                    cell.font = self.cell_font
                     cell.alignment = self.cell_alignment
-                    
-                    if link_col_idx and col_idx == link_col_idx and sanitized_value:
-                        try:
-                            cell.hyperlink = sanitized_value
-                            cell.value = f"Profile Link"
-                            cell.style = "Hyperlink"
-                        except Exception:
-                            pass
+                    cell.border = self.border
 
-            if self.auto_width:
-                for col in ws.columns:
-                    max_length = 0
-                    column = col[0].column_letter
-                    for cell in col:
-                        try:
-                            if cell.value and len(str(cell.value)) > max_length:
-                                max_length = len(str(cell.value))
-                        except Exception:
-                            pass
-                    adjusted_width = min(max_length + 2, self.max_column_width)
-                    ws.column_dimensions[column].width = adjusted_width
+                    if isinstance(value, str) and len(value) > 50:
+                        ws.row_dimensions[row_num].height = 40
+
+            for col_num, header in enumerate(headers, 1):
+                max_length = len(str(header))
+                for row in data:
+                    cell_value = row.get(header, "")
+                    if cell_value:
+                        max_length = max(max_length, len(str(cell_value)))
+
+                adjusted_width = min(max_length + 2, 50)
+                column_letter = get_column_letter(col_num)
+                ws.column_dimensions[column_letter].width = adjusted_width
+
+            table_ref = f"A1:{get_column_letter(len(headers))}{len(data) + 1}"
+            table = Table(displayName=f"Table_{filename[:20]}", ref=table_ref)
+            style = TableStyleInfo(
+                name="TableStyleMedium2",
+                showFirstColumn=False,
+                showLastColumn=False,
+                showRowStripes=True,
+                showColumnStripes=False
+            )
+            table.tableStyleInfo = style
+            ws.add_table(table)
+
+            ws.freeze_panes = "A2"
 
             wb.save(filepath)
-            logger.info(f"Export Excel: {filepath}")
+            wb.close()
+
+            logger.info(f"📁 Экспорт Excel: {filepath} ({len(data)} записей)")
             return str(filepath)
 
         except Exception as e:
-            logger.error(f"Excel export error: {e}")
-            return ""
+            logger.error(f"❌ Ошибка экспорта Excel {filename}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
 
 
 class ExportManager:
-    def __init__(self, output_dir: Path, export_excel: bool = False, 
-                 export_formats: List[str] = None, include_links: bool = True):
+    """Менеджер экспорта — координирует экспорт во все форматы"""
+
+    def __init__(self, output_dir: Path, export_excel: bool = False):
         self.output_dir = output_dir
-        self.export_excel = export_excel
-        self.export_formats = export_formats or ["json", "csv"]
-        self.include_links = include_links
-        
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
         self.json_exporter = JSONExporter(output_dir)
         self.csv_exporter = CSVExporter(output_dir)
         self.excel_exporter = ExcelExporter(output_dir) if export_excel else None
         self.exported_files = []
 
-    def export_all(self, hackers: List[Dict], analyses: List[Dict],
-                   reports: List[Dict], formats: List[str] = None) -> List[str]:
-        formats = formats or self.export_formats
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        hackers = self._remove_duplicates(hackers, 'username')
-        analyses = self._remove_duplicates(analyses, 'username')
-        reports = self._remove_duplicates(reports, 'report_id')
-
-        if "json" in formats:
-            if hackers:
-                self.exported_files.append(self.json_exporter.export(hackers, f"hackers_{timestamp}"))
-            if analyses:
-                self.exported_files.append(self.json_exporter.export(analyses, f"analyses_{timestamp}"))
-            if reports:
-                self.exported_files.append(self.json_exporter.export(reports, f"reports_{timestamp}"))
-
-        if "csv" in formats:
-            if hackers:
-                self.exported_files.append(self.csv_exporter.export(hackers, f"hackers_{timestamp}"))
-            if analyses:
-                self.exported_files.append(self.csv_exporter.export(analyses, f"analyses_{timestamp}"))
-            if reports:
-                self.exported_files.append(self.csv_exporter.export(reports, f"reports_{timestamp}"))
-
-        if self.excel_exporter and "excel" in formats:
-            if hackers:
-                result = self.excel_exporter.export(hackers, f"hackers_{timestamp}", 
-                                                    link_column="profile_url" if self.include_links else None)
-                if result:
-                    self.exported_files.append(result)
-            if analyses:
-                result = self.excel_exporter.export(analyses, f"analyses_{timestamp}", link_column=None)
-                if result:
-                    self.exported_files.append(result)
-
-        return self.exported_files
+        logger.info(f"📂 ExportManager инициализирован: {output_dir}")
+        logger.info(f"📊 Excel экспорт: {'включён' if export_excel else 'выключен'}")
 
     def _remove_duplicates(self, data: List[Dict], key: str) -> List[Dict]:
-        """Удаление дубликатов по ключу"""
         seen = set()
         unique_data = []
+
         for item in data:
             identifier = item.get(key)
             if identifier and identifier not in seen:
@@ -237,6 +213,76 @@ class ExportManager:
 
         removed_count = len(data) - len(unique_data)
         if removed_count > 0:
-            logger.info(f"Removed {removed_count} duplicates")
+            logger.info(f"🗑 Удалено {removed_count} дубликатов по ключу '{key}'")
 
         return unique_data
+
+    def export_all(
+        self,
+        hackers: List[Dict],
+        analyses: List[Dict],
+        reports: List[Dict],
+        formats: List[str] = None
+    ) -> List[str]:
+        formats = formats or ["json", "csv"]
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        logger.info(f"📤 Начало экспорта: форматы={formats}")
+
+        hackers = self._remove_duplicates(hackers, 'username')
+        analyses = self._remove_duplicates(analyses, 'username')
+        reports = self._remove_duplicates(reports, 'report_id')
+
+        if "json" in formats:
+            if hackers:
+                result = self.json_exporter.export(hackers, f"hackers_{timestamp}")
+                if result:
+                    self.exported_files.append(result)
+
+            if analyses:
+                result = self.json_exporter.export(analyses, f"analyses_{timestamp}")
+                if result:
+                    self.exported_files.append(result)
+
+            if reports:
+                result = self.json_exporter.export(reports, f"reports_{timestamp}")
+                if result:
+                    self.exported_files.append(result)
+
+        if "csv" in formats:
+            if hackers:
+                result = self.csv_exporter.export(hackers, f"hackers_{timestamp}")
+                if result:
+                    self.exported_files.append(result)
+
+            if analyses:
+                result = self.csv_exporter.export(analyses, f"analyses_{timestamp}")
+                if result:
+                    self.exported_files.append(result)
+
+            if reports:
+                result = self.csv_exporter.export(reports, f"reports_{timestamp}")
+                if result:
+                    self.exported_files.append(result)
+
+        if "excel" in formats and self.excel_exporter:
+            if hackers:
+                result = self.excel_exporter.export(hackers, f"hackers_{timestamp}")
+                if result:
+                    self.exported_files.append(result)
+
+            if analyses:
+                result = self.excel_exporter.export(analyses, f"analyses_{timestamp}")
+                if result:
+                    self.exported_files.append(result)
+
+        logger.info(f"✅ Экспорт завершён: {len(self.exported_files)} файлов")
+
+        return self.exported_files
+
+    def get_exported_files(self) -> List[str]:
+        return self.exported_files.copy()
+
+    def clear(self):
+        self.exported_files = []
+        logger.info("🗑 Список экспортированных файлов очищен")

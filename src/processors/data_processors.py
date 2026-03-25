@@ -9,9 +9,11 @@ logger = logging.getLogger(__name__)
 class DataNormalizer:
     """
     Нормализация данных
-    ✅ Приводит значения к стандартному диапазону
-    ✅ Заполняет пропуски
-    ✅ Удаляет дубликаты
+
+    ✅ Что делает:
+    - Приводит значения к стандартному диапазону
+    - Заполняет пропуски
+    - Валидирует типы данных
     """
 
     def __init__(self, config: AppConfig):
@@ -32,175 +34,137 @@ class DataNormalizer:
             # Impact: не отрицательное
             profile.impact = max(0, profile.impact)
 
+            # Total bounties: не отрицательное
+            profile.total_bounties = max(0.0, profile.total_bounties)
+
+            # Total reports: не отрицательное
+            profile.total_reports = max(0, profile.total_reports)
+
+            # Accepted reports: не отрицательное
+            profile.accepted_reports = max(0, profile.accepted_reports)
+
         logger.info(f"✓ Нормализовано {len(profiles)} профилей")
         return profiles
 
 
 class DataEnricher:
-    """
-    Обогащение данных вычисляемыми метриками
-    ✅ Рассчитывает value_score, activity_score, quality_score
-    ✅ Определяет tier хакера
-    ✅ Использует улучшенную формулу рейтинга
-    """
-
     def __init__(self, config: AppConfig):
         self.config = config
         self.weights = config.metrics_weights
-        self.advanced_weights = config.advanced_metrics_weights
         self.thresholds = config.tier_thresholds
 
     def calculate_value_score(self, profile: HackerProfile) -> float:
         """
-        Улучшенный расчёт общего value_score (0-100)
+        Расчёт value_score на основе РЕАЛЬНЫХ данных HackerOne
 
-        Новая формула учитывает больше факторов:
-        - Репутация (нормализованная)
-        - Signal (нормализованный)
-        - Impact (нормализованный)
-        - Acceptance rate
-        - Активность (recency фактор)
+        Нормализация основана на анализе топ-100 хакеров:
+        • Reputation: 0-8000 (топ: 7500+)
+        • Signal: 0-75 (топ: 67-70)
+        • Impact: 0-35000 (топ: 15000-31000)
         """
-        norm_rep = min(profile.reputation / 10000, 1.0)
-        norm_signal = profile.signal / 100
-        norm_impact = min(profile.impact / 50000, 1.0)
-        norm_acceptance = profile.acceptance_rate
-        
-        recency_factor = 1.0
-        if profile.last_activity_date:
-            days_since_activity = (datetime.now() - profile.last_activity_date).days
-            recency_factor = max(0.5, 1.0 - (days_since_activity / 365))
+        norm_rep = min(profile.reputation / 8000, 1.0)
+        norm_signal = min(profile.signal / 75, 1.0)
+        norm_impact = min(profile.impact / 35000, 1.0)
 
         score = (
-            self.weights.reputation * norm_rep +
-            self.weights.signal * norm_signal +
-            self.weights.impact * norm_impact +
-            self.weights.acceptance_rate * norm_acceptance +
-            self.weights.activity_recency * recency_factor
-        )
-
-        return round(score * 100, 2)
-
-    def calculate_advanced_rating(self, profile: HackerProfile) -> float:
-        """
-        Расширенная формула рейтинга с дополнительными факторами
-
-        Формула:
-        rating = (
-            0.15 * normalize(reputation) +
-            0.15 * normalize(signal) +
-            0.15 * normalize(impact) +
-            0.20 * report_quality +
-            0.15 * consistency_bonus +
-            0.10 * recency_factor +
-            0.10 * verification_bonus
-        )
-        """
-        norm_rep = min(profile.reputation / 10000, 1.0)
-        norm_signal = profile.signal / 100
-        norm_impact = min(profile.impact / 50000, 1.0)
-        
-        report_quality = profile.acceptance_rate * min(profile.total_reports / 50, 1.0)
-        
-        consistency_bonus = min(profile.acceptance_rate * (1 + profile.total_reports / 100), 1.0)
-        
-        recency_factor = 1.0
-        if profile.last_activity_date:
-            days_since_activity = (datetime.now() - profile.last_activity_date).days
-            recency_factor = max(0.3, 1.0 - (days_since_activity / 180))
-        
-        verification_bonus = 1.0 if profile.is_verified else 0.5
-
-        score = (
-            self.advanced_weights.base_reputation * norm_rep +
-            self.advanced_weights.normalized_signal * norm_signal +
-            self.advanced_weights.impact_score * norm_impact +
-            self.advanced_weights.report_quality * report_quality +
-            self.advanced_weights.consistency_bonus * consistency_bonus +
-            self.advanced_weights.recency_factor * recency_factor +
-            self.advanced_weights.verification_bonus * verification_bonus
+                self.weights.reputation * norm_rep +
+                self.weights.signal * norm_signal +
+                self.weights.impact * norm_impact
         )
 
         return round(score * 100, 2)
 
     def calculate_activity_score(self, profile: HackerProfile) -> float:
         """
-        Расчёт activity_score (0-100)
-        На основе активности хакера
-        """
-        recency_bonus = 1.0
-        if profile.last_activity_date:
-            days_since_activity = (datetime.now() - profile.last_activity_date).days
-            recency_bonus = max(0.5, 1.0 - (days_since_activity / 90))
+        Расчёт activity_score
 
-        score = (
-            min(profile.total_reports / 50, 1.0) * 40 +
-            profile.acceptance_rate * 30 +
-            (1 if profile.is_verified else 0) * 20 +
-            recency_bonus * 10
-        )
+        ⚠️ total_reports недоступен в лидерборде, используем reputation как proxy
+        """
+        # ✅ ИСПРАВЛЕНО: Используем reputation как косвенный показатель активности
+        if profile.total_reports == 0:
+            # Косвенная оценка по reputation (8000+ = максимум активности)
+            activity_from_rep = min(profile.reputation / 8000, 1.0) * 40
+        else:
+            activity_from_rep = min(profile.total_reports / 100, 1.0) * 40
+
+        # Acceptance rate (если доступен)
+        if profile.acceptance_rate > 0:
+            acceptance_score = profile.acceptance_rate * 40
+        else:
+            # Косвенная оценка по signal (75+ = высокое качество)
+            acceptance_score = min(profile.signal / 75, 1.0) * 40
+
+        # Verified bonus
+        verified_score = 20 if profile.is_verified else 0
+
+        score = activity_from_rep + acceptance_score + verified_score
+
         return min(100, round(score, 2))
 
     def calculate_quality_score(self, profile: HackerProfile) -> float:
         """
-        Расчёт quality_score (0-100)
-        На основе качества отчётов
+        Расчёт quality_score
         """
-        avg_bounty = profile.total_bounties / max(profile.total_reports, 1)
-        
-        bounty_quality = min(avg_bounty / 1500, 1.0)
-        acceptance_quality = profile.acceptance_rate
-        impact_quality = min(profile.impact / 50000, 1.0)
+        # Acceptance rate
+        if profile.acceptance_rate > 0:
+            acceptance_score = profile.acceptance_rate * 50
+        else:
+            # Косвенная оценка по signal
+            acceptance_score = min(profile.signal / 75, 1.0) * 50
 
-        score = (
-            acceptance_quality * 40 +
-            bounty_quality * 35 +
-            impact_quality * 25
-        )
+        # Avg bounty (если доступен)
+        if profile.total_bounties > 0 and profile.total_reports > 0:
+            avg_bounty = profile.total_bounties / profile.total_reports
+            bounty_score = min(avg_bounty / 1000, 1.0) * 30
+        else:
+            # Косвенная оценка по impact
+            bounty_score = min(profile.impact / 35000, 1.0) * 30
+
+        # Impact score
+        impact_score = min(profile.impact / 30000, 1.0) * 20
+
+        score = acceptance_score + bounty_score + impact_score
+
         return min(100, round(score, 2))
 
     def determine_tier(self, value_score: float) -> HackerTier:
         """
-        Определение tier хакера по value_score
+        ✅ ИСПРАВЛЕНО: Пороги под РЕАЛЬНЫЕ данные
 
-        | Score  | Tier     |
-        |--------|----------|
-        | ≥ 80   | elite    |
-        | ≥ 60   | premium  |
-        | ≥ 40   | standard |
-        | < 40   | novice   |
+        | Score  | Tier     | Описание                    |
+        |--------|----------|-----------------------------|
+        | ≥ 70   | elite    | Топ-уровень (топ-5)        |
+        | ≥ 55   | premium  | Высокий уровень (топ-10)   |
+        | ≥ 40   | standard | Средний уровень (топ-20)   |
+        | < 40   | novice   | Начинающий                 |
         """
-        if value_score >= self.thresholds.elite:
+        if value_score >= 70:  # ← СНИЖЕНО с 80
             return HackerTier.ELITE
-        elif value_score >= self.thresholds.premium:
+        elif value_score >= 55:  # ← СНИЖЕНО с 60
             return HackerTier.PREMIUM
-        elif value_score >= self.thresholds.standard:
+        elif value_score >= 40:  # ← ОСТАВЛЕНО
             return HackerTier.STANDARD
         return HackerTier.NOVICE
 
     def enrich(self, profiles: List[HackerProfile]) -> List[HackerProfile]:
-        """Обогащение всех профилей метриками"""
         for profile in profiles:
             profile.value_score = self.calculate_value_score(profile)
             profile.activity_score = self.calculate_activity_score(profile)
             profile.quality_score = self.calculate_quality_score(profile)
-            
-            if profile.value_score >= 70:
-                profile.value_score = max(profile.value_score, self.calculate_advanced_rating(profile))
-            
             profile.tier = self.determine_tier(profile.value_score)
 
         logger.info(f"✓ Обогащено {len(profiles)} профилей метриками")
         return profiles
 
-
 class DataFilter:
     """
     Фильтрация данных
-    ✅ По tier
-    ✅ По минимальному score
-    ✅ По стране
-    ✅ По активности
+
+    ✅ Фильтры:
+    - По tier (elite, premium, standard, novice)
+    - По минимальному score
+    - По стране
+    - По активности (минимум отчётов)
     """
 
     def __init__(self, config: AppConfig):
@@ -254,9 +218,11 @@ class DataFilter:
 class DataAggregator:
     """
     Агрегация данных
-    ✅ Группировка по tier
-    ✅ Группировка по стране
-    ✅ Расчёт статистик
+
+    ✅ Методы:
+    - Группировка по tier
+    - Группировка по стране
+    - Расчёт статистик (среднее, всего)
     """
 
     @staticmethod
@@ -278,6 +244,15 @@ class DataAggregator:
         return result
 
     @staticmethod
+    def aggregate_by_skills(profiles: List[HackerProfile]) -> Dict[str, int]:
+        """Группировка по навыкам"""
+        result = {}
+        for p in profiles:
+            for skill in p.skills:
+                result[skill] = result.get(skill, 0) + 1
+        return dict(sorted(result.items(), key=lambda x: x[1], reverse=True))
+
+    @staticmethod
     def calculate_stats(profiles: List[HackerProfile]) -> Dict[str, float]:
         """Расчёт статистик по выборке"""
         if not profiles:
@@ -296,5 +271,7 @@ class DataAggregator:
                 sum(p.quality_score for p in profiles) / len(profiles),
                 2
             ),
-            "total_hackers": len(profiles)
+            "total_hackers": len(profiles),
+            "max_value_score": round(max(p.value_score for p in profiles), 2),
+            "min_value_score": round(min(p.value_score for p in profiles), 2),
         }
