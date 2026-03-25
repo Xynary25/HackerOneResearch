@@ -17,10 +17,24 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 
+class ChromeNotAvailableError(Exception):
+    """Исключение для случая отсутствия Google Chrome"""
+    pass
+
+
 class HackerOneScraper:
     """
     Реальный скрапер HackerOne через Selenium
     ✅ Извлекает: username, reputation, signal, impact из таблицы лидерборда
+    
+    Attributes:
+        config: Конфигурация из YAML
+        base_url: Базовый URL HackerOne
+        delay: Задержка между запросами (rate limiting)
+        max_retries: Максимальное количество попыток
+        headless: Режим работы браузера (фоновый/оконный)
+        driver: Экземпляр WebDriver
+        debug_dir: Директория для отладочных HTML файлов
     """
 
     def __init__(self, config_path: Optional[Path] = None, headless: bool = True):
@@ -65,7 +79,13 @@ class HackerOneScraper:
         }
 
     def _init_browser(self):
-        """Инициализация Chrome WebDriver с анти-детект настройками"""
+        """
+        Инициализация Chrome WebDriver с анти-детект настройками
+        
+        Raises:
+            ChromeNotAvailableError: Если Google Chrome не найден в системе
+            Exception: При других ошибках инициализации
+        """
         try:
             chrome_options = Options()
 
@@ -101,6 +121,13 @@ class HackerOneScraper:
             logger.info("✓ Браузер запущен (headless=%s)", self.headless)
 
         except Exception as e:
+            error_msg = str(e).lower()
+            if 'chrome' in error_msg or 'chromium' in error_msg or 'not found' in error_msg:
+                logger.error("❌ Google Chrome не найден. Установите браузер.")
+                raise ChromeNotAvailableError(
+                    "Google Chrome не установлен или не найден в PATH. "
+                    "Пожалуйста, установите Chrome: https://www.google.com/chrome/"
+                ) from e
             logger.error(f"❌ Ошибка инициализации браузера: {e}")
             raise
 
@@ -533,10 +560,25 @@ class HackerOneScraper:
             return {}
 
     def close(self):
-        """Закрытие браузера"""
+        """
+        Закрытие браузера и освобождение ресурсов
+        
+        Raises:
+            Exception: При ошибках закрытия (логируется, но не пробрасывается)
+        """
         if self.driver:
             try:
                 self.driver.quit()
-            except Exception:
-                pass
+                logger.info("✓ Браузер корректно закрыт")
+            except Exception as e:
+                logger.warning(f"⚠ Ошибка при закрытии браузера: {e}")
         logger.info(f"📊 Всего выполнено запросов: {self._request_count}")
+
+    def __enter__(self):
+        """Контекстный менеджер: вход"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Контекстный менеджер: выход с закрытием ресурсов"""
+        self.close()
+        return False  # Не подавляем исключения

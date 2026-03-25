@@ -17,9 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class JSONExporter:
+    """Экспорт данных в формат JSON с поддержкой контекстного менеджера"""
+    
     def __init__(self, output_dir: Path):
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._file_handle = None
 
     def export(self, data: List[Dict], filename: str) -> str:
         filepath = self.output_dir / f"{filename}.json"
@@ -28,11 +31,22 @@ class JSONExporter:
         logger.info(f"📁 Экспорт JSON: {filepath}")
         return str(filepath)
 
+    def __enter__(self):
+        """Контекстный менеджер: вход"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Контекстный менеджер: выход"""
+        pass
+
 
 class CSVExporter:
+    """Экспорт данных в формат CSV с поддержкой контекстного менеджера"""
+    
     def __init__(self, output_dir: Path):
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._file_handle = None
 
     def export(self, data: List[Dict], filename: str) -> str:
         if not data:
@@ -46,6 +60,14 @@ class CSVExporter:
             writer.writerows(data)
         logger.info(f"📁 Экспорт CSV: {filepath}")
         return str(filepath)
+
+    def __enter__(self):
+        """Контекстный менеджер: вход"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Контекстный менеджер: выход"""
+        pass
 
 
 class ExcelExporter:
