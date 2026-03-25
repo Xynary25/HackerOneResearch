@@ -18,25 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 class ChromeNotAvailableError(Exception):
-    """Исключение для случая отсутствия Google Chrome"""
     pass
 
 
 class HackerOneScraper:
-    """
-    Реальный скрапер HackerOne через Selenium
-    ✅ Извлекает: username, reputation, signal, impact из таблицы лидерборда
-    
-    Attributes:
-        config: Конфигурация из YAML
-        base_url: Базовый URL HackerOne
-        delay: Задержка между запросами (rate limiting)
-        max_retries: Максимальное количество попыток
-        headless: Режим работы браузера (фоновый/оконный)
-        driver: Экземпляр WebDriver
-        debug_dir: Директория для отладочных HTML файлов
-    """
-
     def __init__(self, config_path: Optional[Path] = None, headless: bool = True):
         self.config = self._load_config(config_path)
         self.base_url = self.config.get('hackerone', {}).get('scraper', {}).get(
@@ -49,12 +34,11 @@ class HackerOneScraper:
         self.driver = None
         self._request_count = 0
 
-        # Директория для debug HTML
         self.debug_dir = Path(__file__).parent.parent.parent / 'data' / 'debug'
         self.debug_dir.mkdir(parents=True, exist_ok=True)
 
         self._init_browser()
-        logger.info("✓ Chrome WebDriver инициализирован")
+        logger.info("Chrome WebDriver initialized")
 
     def _load_config(self, config_path: Optional[Path] = None) -> Dict:
         """Загрузка конфигурации из YAML"""
@@ -118,17 +102,17 @@ class HackerOneScraper:
                 '''
             })
 
-            logger.info("✓ Браузер запущен (headless=%s)", self.headless)
+            logger.info(" Браузер запущен (headless=%s)", self.headless)
 
         except Exception as e:
             error_msg = str(e).lower()
             if 'chrome' in error_msg or 'chromium' in error_msg or 'not found' in error_msg:
-                logger.error("❌ Google Chrome не найден. Установите браузер.")
+                logger.error(" Google Chrome не найден. Установите браузер.")
                 raise ChromeNotAvailableError(
                     "Google Chrome не установлен или не найден в PATH. "
                     "Пожалуйста, установите Chrome: https://www.google.com/chrome/"
                 ) from e
-            logger.error(f"❌ Ошибка инициализации браузера: {e}")
+            logger.error(f" Ошибка инициализации браузера: {e}")
             raise
 
     def _rate_limit(self):
@@ -136,7 +120,7 @@ class HackerOneScraper:
         time.sleep(self.delay + random.uniform(0.5, 2.0))
         self._request_count += 1
         if self._request_count % 10 == 0:
-            logger.info(f"📊 Выполнено запросов: {self._request_count}")
+            logger.info(f" Выполнено запросов: {self._request_count}")
 
     def _wait_for_content(self, timeout: int = 30):
         """Ждём загрузки динамического контента с прокруткой"""
@@ -170,9 +154,9 @@ class HackerOneScraper:
             filepath = self.debug_dir / filename
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(html)
-            logger.info(f"📁 HTML сохранён: {filepath}")
+            logger.info(f" HTML сохранён: {filepath}")
         except Exception as e:
-            logger.error(f"❌ Не удалось сохранить HTML: {e}")
+            logger.error(f" Не удалось сохранить HTML: {e}")
 
     def fetch_leaderboard(self, limit: int = 50) -> List[Dict]:
         """
@@ -185,7 +169,7 @@ class HackerOneScraper:
         - impact (float → конвертируем в целое)
         - profile_url (ссылка на профиль)
         """
-        logger.info(f"📊 Сбор лидерборда: {limit} хакеров")
+        logger.info(f" Сбор лидерборда: {limit} хакеров")
 
         hackers = []
         seen_usernames: Set[str] = set()
@@ -198,7 +182,7 @@ class HackerOneScraper:
 
         try:
             url = f"{self.base_url}/leaderboard"
-            logger.info(f"🌐 Открываем: {url}")
+            logger.info(f" Открываем: {url}")
 
             self.driver.get(url)
             self._rate_limit()
@@ -218,7 +202,7 @@ class HackerOneScraper:
                 {'role': 'row', 'data-testid': lambda x: x and 'table-row-' in x and 'Z2lk' in x}
             )
 
-            logger.debug(f"📊 Найдено строк таблицы: {len(table_rows)}")
+            logger.debug(f" Найдено строк таблицы: {len(table_rows)}")
 
             for row in table_rows:
                 if len(hackers) >= limit:
@@ -233,16 +217,16 @@ class HackerOneScraper:
                             seen_usernames.add(username)
                             hackers.append(hacker_data)
                             logger.debug(
-                                f"✓ Найден хакер: {username} "
+                                f" Найден хакер: {username} "
                                 f"(rep: {hacker_data['reputation']}, "
                                 f"signal: {hacker_data['signal']}, "
                                 f"impact: {hacker_data['impact']})"
                             )
 
-            logger.info(f"✓ Собрано {len(hackers)} уникальных профилей из лидерборда")
+            logger.info(f" Собрано {len(hackers)} уникальных профилей из лидерборда")
 
         except Exception as e:
-            logger.error(f"❌ Ошибка сбора лидерборда: {e}")
+            logger.error(f" Ошибка сбора лидерборда: {e}")
             import traceback
             logger.error(traceback.format_exc())
 
@@ -327,12 +311,12 @@ class HackerOneScraper:
 
             return {
                 'username': username,
-                'rank': len(seen_usernames) + 1 if 'seen_usernames' in locals() else 0,
+                'rank': 0,
                 'reputation': reputation,
                 'signal': signal,
                 'impact': impact,
                 'country': None,
-                'is_verified': reputation > 5000,  # Предполагаем верификацию для топ хакеров
+                'is_verified': reputation > 5000,
                 'total_bounties': 0.0,
                 'total_reports': 0,
                 'accepted_reports': 0,
@@ -346,14 +330,14 @@ class HackerOneScraper:
 
     def fetch_hacktivity(self, limit: int = 50) -> List[Dict]:
         """Сбор данных из Hacktivity"""
-        logger.info(f"📰 Сбор hacktivity: {limit} отчётов")
+        logger.info(f" Сбор hacktivity: {limit} отчётов")
 
         reports = []
         seen_ids: Set[int] = set()
 
         try:
             url = f"{self.base_url}/hacktivity"
-            logger.info(f"🌐 Открываем: {url}")
+            logger.info(f" Открываем: {url}")
 
             self.driver.get(url)
             self._rate_limit()
@@ -417,15 +401,15 @@ class HackerOneScraper:
 
             # Альтернативный поиск если не нашли через таблицу
             if len(reports) < limit:
-                logger.info("🔄 Пробуем альтернативный метод парсинга hacktivity...")
+                logger.info(" Пробуем альтернативный метод парсинга hacktivity...")
                 reports.extend(
                     self._parse_hacktivity_alternative(soup, limit - len(reports))
                 )
 
-            logger.info(f"✓ Собрано {len(reports)} отчётов из hacktivity")
+            logger.info(f" Собрано {len(reports)} отчётов из hacktivity")
 
         except Exception as e:
-            logger.error(f"❌ Ошибка сбора hacktivity: {e}")
+            logger.error(f" Ошибка сбора hacktivity: {e}")
             import traceback
             logger.error(traceback.format_exc())
 
@@ -473,7 +457,7 @@ class HackerOneScraper:
 
     def fetch_profile(self, username: str) -> Dict:
         """Сбор данных профиля конкретного хакера"""
-        logger.info(f"👤 Сбор профиля: {username}")
+        logger.info(f" Сбор профиля: {username}")
 
         url = f"{self.base_url}/{username}"
 
@@ -552,11 +536,11 @@ class HackerOneScraper:
                 if s.get_text(strip=True)
             ]
 
-            logger.info(f"✓ Профиль {username} собран")
+            logger.info(f" Профиль {username} собран")
             return profile_data
 
         except Exception as e:
-            logger.error(f"❌ Ошибка сбора профиля {username}: {e}")
+            logger.error(f" Ошибка сбора профиля {username}: {e}")
             return {}
 
     def close(self):
@@ -569,10 +553,10 @@ class HackerOneScraper:
         if self.driver:
             try:
                 self.driver.quit()
-                logger.info("✓ Браузер корректно закрыт")
+                logger.info(" Браузер корректно закрыт")
             except Exception as e:
-                logger.warning(f"⚠ Ошибка при закрытии браузера: {e}")
-        logger.info(f"📊 Всего выполнено запросов: {self._request_count}")
+                logger.warning(f" Ошибка при закрытии браузера: {e}")
+        logger.info(f" Всего выполнено запросов: {self._request_count}")
 
     def __enter__(self):
         """Контекстный менеджер: вход"""
