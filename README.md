@@ -550,9 +550,8 @@ Copyright (c) 2026 Xynary25
 
 ## 📞 Контакты
 
-- **GitHub**: `<https://github.com/Xynary25>`
-- **Email**: `<xynary56@gmail.com>`
-- **Telegram**: `<i_iamwho_o>`
+- [GitHub](https://github.com/Xynary25)
+- [Email](xynary56@gmail.com)
 
 ---
 
