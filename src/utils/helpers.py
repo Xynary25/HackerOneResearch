@@ -1,24 +1,15 @@
 import logging
 import sys
+import json
 from pathlib import Path
-from typing import List, Any, Optional
-from datetime import datetime
+from typing import List, Tuple, Any, Optional
+from datetime import datetime, date
 from colorama import init, Fore, Style
 
 init()
 
 
-def setup_logging(logs_dir: Path, level: int = logging.INFO) -> tuple[logging.Logger, Path]:
-    """
-    Настройка логирования в файл и консоль
-
-    Args:
-        logs_dir: Директория для логов
-        level: Уровень логирования
-
-    Returns:
-        tuple[Logger, Path]: Логгер и путь к файлу лога
-    """
+def setup_logging(logs_dir: Path, level: int = logging.INFO) -> Tuple[logging.Logger, Path]:
     logs_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -44,22 +35,20 @@ def setup_logging(logs_dir: Path, level: int = logging.INFO) -> tuple[logging.Lo
     root_logger.addHandler(console_handler)
 
     logger = logging.getLogger(__name__)
-    logger.info(f"📁 Лог-файл создан: {log_file}")
+    logger.info(f"Лог-файл создан: {log_file}")
 
     return logger, log_file
 
 
 def print_header(title: str):
-    """Вывод заголовка в консоль"""
     print(f"\n{Fore.CYAN}{'=' * 60}{Style.RESET_ALL}")
     print(f"{Fore.CYAN}{title.center(60)}{Style.RESET_ALL}")
     print(f"{Fore.CYAN}{'=' * 60}{Style.RESET_ALL}\n")
 
 
 def print_table(headers: List[str], rows: List[List[str]]):
-    """Вывод таблицы в консоль"""
     if not rows:
-        print("⚠ Нет данных для отображения")
+        print("Нет данных для отображения")
         return
 
     col_widths = [max(len(str(item)) for item in col) for col in zip(headers, *rows)]
@@ -73,39 +62,22 @@ def print_table(headers: List[str], rows: List[List[str]]):
 
 
 def create_directories(base_dir: Path):
-    """Создание необходимых директорий"""
-    dirs = [
-        "data/raw",
-        "data/processed",
-        "data/reports",
-        "data/debug",
-        "logs"
-    ]
+    dirs = ["data/raw", "data/processed", "data/reports", "data/debug", "logs"]
     for d in dirs:
         (base_dir / d).mkdir(parents=True, exist_ok=True)
 
 
 def sanitize_value(value: Any) -> Any:
-    """
-    Санитизация значения для экспорта в Excel/CSV
-
-    Args:
-        value: Исходное значение
-
-    Returns:
-        Any: Очищенное значение
-    """
     if value is None:
         return ""
 
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return ", ".join(str(item) for item in value)
 
     if isinstance(value, dict):
-        import json
-        return json.dumps(value, ensure_ascii=False)
+        return json.dumps(value, ensure_ascii=False, default=str)
 
-    if isinstance(value, datetime):
+    if isinstance(value, (datetime, date)):
         return value.strftime("%Y-%m-%d %H:%M:%S")
 
     if isinstance(value, (int, float, str, bool)):

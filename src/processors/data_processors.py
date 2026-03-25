@@ -48,15 +48,6 @@ class DataNormalizer:
 
 
 class DataEnricher:
-    """
-    Обогащение данных вычисляемыми метриками
-
-    ✅ Формулы:
-    - value_score = 0.40*rep + 0.30*signal + 0.30*impact
-    - activity_score = reports*0.4 + acceptance*40 + verified*20
-    - quality_score = acceptance*50 + bounty*30 + impact*20
-    """
-
     def __init__(self, config: AppConfig):
         self.config = config
         self.weights = config.metrics_weights
@@ -64,18 +55,16 @@ class DataEnricher:
 
     def calculate_value_score(self, profile: HackerProfile) -> float:
         """
-        Расчёт общего value_score (0-100)
+        Расчёт value_score на основе РЕАЛЬНЫХ данных HackerOne
 
-        Формула:
-        value_score = (
-            0.40 * normalize(reputation, 0, 10000) +
-            0.30 * normalize(signal, 0, 100) +
-            0.30 * normalize(impact, 0, 50000)
-        )
+        Нормализация основана на анализе топ-100 хакеров:
+        • Reputation: 0-8000 (топ: 7500+)
+        • Signal: 0-75 (топ: 67-70)
+        • Impact: 0-35000 (топ: 15000-31000)
         """
-        norm_rep = min(profile.reputation / 10000, 1.0)
-        norm_signal = profile.signal / 100
-        norm_impact = min(profile.impact / 50000, 1.0)
+        norm_rep = min(profile.reputation / 8000, 1.0)
+        norm_signal = min(profile.signal / 75, 1.0)
+        norm_impact = min(profile.impact / 35000, 1.0)
 
         score = (
                 self.weights.reputation * norm_rep +
@@ -87,51 +76,77 @@ class DataEnricher:
 
     def calculate_activity_score(self, profile: HackerProfile) -> float:
         """
-        Расчёт activity_score (0-100)
-        На основе активности хакера
+        Расчёт activity_score
+
+        ⚠️ total_reports недоступен в лидерборде, используем reputation как proxy
         """
-        score = (
-                min(profile.total_reports / 100, 1.0) * 40 +
-                profile.acceptance_rate * 40 +
-                (1 if profile.is_verified else 0) * 20
-        )
+        # ✅ ИСПРАВЛЕНО: Используем reputation как косвенный показатель активности
+        if profile.total_reports == 0:
+            # Косвенная оценка по reputation (8000+ = максимум активности)
+            activity_from_rep = min(profile.reputation / 8000, 1.0) * 40
+        else:
+            activity_from_rep = min(profile.total_reports / 100, 1.0) * 40
+
+        # Acceptance rate (если доступен)
+        if profile.acceptance_rate > 0:
+            acceptance_score = profile.acceptance_rate * 40
+        else:
+            # Косвенная оценка по signal (75+ = высокое качество)
+            acceptance_score = min(profile.signal / 75, 1.0) * 40
+
+        # Verified bonus
+        verified_score = 20 if profile.is_verified else 0
+
+        score = activity_from_rep + acceptance_score + verified_score
+
         return min(100, round(score, 2))
 
     def calculate_quality_score(self, profile: HackerProfile) -> float:
         """
-        Расчёт quality_score (0-100)
-        На основе качества отчётов
+        Расчёт quality_score
         """
-        avg_bounty = profile.total_bounties / max(profile.total_reports, 1)
+        # Acceptance rate
+        if profile.acceptance_rate > 0:
+            acceptance_score = profile.acceptance_rate * 50
+        else:
+            # Косвенная оценка по signal
+            acceptance_score = min(profile.signal / 75, 1.0) * 50
 
-        score = (
-                profile.acceptance_rate * 50 +
-                min(avg_bounty / 1000, 1.0) * 30 +
-                min(profile.impact / 50000, 1.0) * 20
-        )
+        # Avg bounty (если доступен)
+        if profile.total_bounties > 0 and profile.total_reports > 0:
+            avg_bounty = profile.total_bounties / profile.total_reports
+            bounty_score = min(avg_bounty / 1000, 1.0) * 30
+        else:
+            # Косвенная оценка по impact
+            bounty_score = min(profile.impact / 35000, 1.0) * 30
+
+        # Impact score
+        impact_score = min(profile.impact / 30000, 1.0) * 20
+
+        score = acceptance_score + bounty_score + impact_score
+
         return min(100, round(score, 2))
 
     def determine_tier(self, value_score: float) -> HackerTier:
         """
-        Определение tier хакера по value_score
+        ✅ ИСПРАВЛЕНО: Пороги под РЕАЛЬНЫЕ данные
 
-        | Score  | Tier     |
-        |--------|----------|
-        | ≥ 80   | elite    |
-        | ≥ 60   | premium  |
-        | ≥ 40   | standard |
-        | < 40   | novice   |
+        | Score  | Tier     | Описание                    |
+        |--------|----------|-----------------------------|
+        | ≥ 70   | elite    | Топ-уровень (топ-5)        |
+        | ≥ 55   | premium  | Высокий уровень (топ-10)   |
+        | ≥ 40   | standard | Средний уровень (топ-20)   |
+        | < 40   | novice   | Начинающий                 |
         """
-        if value_score >= self.thresholds.elite:
+        if value_score >= 70:  # ← СНИЖЕНО с 80
             return HackerTier.ELITE
-        elif value_score >= self.thresholds.premium:
+        elif value_score >= 55:  # ← СНИЖЕНО с 60
             return HackerTier.PREMIUM
-        elif value_score >= self.thresholds.standard:
+        elif value_score >= 40:  # ← ОСТАВЛЕНО
             return HackerTier.STANDARD
         return HackerTier.NOVICE
 
     def enrich(self, profiles: List[HackerProfile]) -> List[HackerProfile]:
-        """Обогащение всех профилей метриками"""
         for profile in profiles:
             profile.value_score = self.calculate_value_score(profile)
             profile.activity_score = self.calculate_activity_score(profile)
@@ -140,7 +155,6 @@ class DataEnricher:
 
         logger.info(f"✓ Обогащено {len(profiles)} профилей метриками")
         return profiles
-
 
 class DataFilter:
     """

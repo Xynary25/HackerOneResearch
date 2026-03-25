@@ -23,10 +23,10 @@ class LeaderboardCollector(BaseCollector):
     ✅ Преобразует сырые данные в объекты HackerProfile
     """
 
-    def collect(self, limit: int = 100) -> List[HackerProfile]:
-        logger.info(f"📊 Сбор лидерборда: {limit} хакеров")
+    def collect(self, limit: int = 100, category: str = "reputation") -> List[HackerProfile]:
+        logger.info(f"📊 Сбор лидерборда: {limit} хакеров, категория: {category}")
 
-        raw_data = self.client.fetch_leaderboard(limit)
+        raw_data = self.client.fetch_leaderboard(limit, category)
         profiles = []
 
         for item in raw_data:
@@ -39,8 +39,8 @@ class LeaderboardCollector(BaseCollector):
                 total_reports=item.get("total_reports", 0),
                 accepted_reports=item.get("accepted_reports", 0),
                 acceptance_rate=(
-                        item.get("accepted_reports", 0) /
-                        max(item.get("total_reports", 1), 1)
+                    item.get("accepted_reports", 0) /
+                    max(item.get("total_reports", 1), 1)
                 ),
                 rank=item.get("rank"),
                 country=item.get("country"),
@@ -124,8 +124,8 @@ class HackerProfileCollector(BaseCollector):
                     profile_url=f"https://hackerone.com/{username}"
                 )
                 profile.acceptance_rate = (
-                        profile.accepted_reports /
-                        max(profile.total_reports, 1)
+                    profile.accepted_reports /
+                    max(profile.total_reports, 1)
                 )
                 profiles.append(profile)
 
