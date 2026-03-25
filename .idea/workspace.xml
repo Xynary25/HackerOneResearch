@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="194eb2d8-1a06-438d-aab7-c4bc7c0e1003" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/HackerOneResearch.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/config.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/debug_scraper.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/gui.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/analyzers/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/analyzers/data_analyzers.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/clients/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/clients/hackerone_api_client.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/clients/hackerone_scraper.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/clients/leaderboard_categories.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/collectors/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/collectors/data_collectors.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/config/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/config/settings.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/exporters/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/exporters/data_exporters.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/models/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/models/entities.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/processors/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/processors/data_processors.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/utils/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/utils/helpers.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6
+}</component>
+  <component name="ProjectId" id="3BLQPEjDY5fKGvw9gQxNiikab4f" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.gui.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Ryzen 9900/PycharmProjects/HackerOneResearch/src/analyzers&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Ryzen 9900\PycharmProjects\HackerOneResearch\src\analyzers" />
+      <recent name="C:\Users\Ryzen 9900\PycharmProjects\HackerOneResearch\src\clients" />
+      <recent name="C:\Users\Ryzen 9900\PycharmProjects\HackerOneResearch\src\collertors" />
+      <recent name="C:\Users\Ryzen 9900\PycharmProjects\HackerOneResearch\src\config" />
+      <recent name="C:\Users\Ryzen 9900\PycharmProjects\HackerOneResearch\src\exporters" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-7e47963ff851-f0eec537fc84-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.23892.515" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="194eb2d8-1a06-438d-aab7-c4bc7c0e1003" name="Changes" comment="" />
+      <created>1774265845009</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1774265845009</updated>
+    </task>
+    <servers />
+  </component>
+</project>
