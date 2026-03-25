@@ -476,7 +476,7 @@ requests_per_minute: 15
 
 ## 📈 Примеры использования данных
 
-### Для рекрутинга на Standoff
+### Для рекрутинга
 
 ```python
 # Фильтрация приоритетных кандидатов
@@ -546,16 +546,13 @@ Copyright (c) 2026 Xynary25
 
 **Xynary25**  
 2026
-
-Проект создан в рамках тестового задания для платформы Standoff Bug Bounty.
-
 ---
 
 ## 📞 Контакты
 
-- **GitHub**: `<your-github-profile>`
-- **Email**: `<your-email>`
-- **Telegram**: `<your-telegram>`
+- **GitHub**: `<https://github.com/Xynary25>`
+- **Email**: `<xynary56@gmail.com>`
+- **Telegram**: `<i_iamwho_o>`
 
 ---
 
