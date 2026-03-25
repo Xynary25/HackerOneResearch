@@ -108,7 +108,8 @@ def main():
         leaderboard_collector = LeaderboardCollector(scraper)
         hacktivity_collector = HacktivityCollector(scraper)
 
-        hackers = leaderboard_collector.collect(limit=args.limit, category=args.category)
+        logger.info(f"Сбор лидерборда: limit={args.limit}, category={args.category}")
+        hackers = leaderboard_collector.collect(limit=args.limit)
         reports = hacktivity_collector.collect(limit=args.reports)
 
         print(f"Собрано хакеров: {len(hackers)}")
