@@ -29,6 +29,17 @@ class ReportState(Enum):
     CLOSED = "closed"
 
 
+class LeaderboardCategory(Enum):
+    """Категории лидерборда HackerOne"""
+    REPUTATION = "reputation"
+    HIGH_CRITICAL = "high_critical"
+    OWASP = "owasp"
+    COUNTRY = "country"
+    ASSET_TYPE = "asset_type"
+    UP_AND_COMERS = "up_and_comers"
+    UPVOTES = "upvotes"
+
+
 @dataclass
 class HackerProfile:
     """
@@ -59,7 +70,7 @@ class HackerProfile:
     quality_score: float = 0.0
     last_activity_date: Optional[datetime] = None
     profile_url: Optional[str] = None
-
+    
     def to_dict(self) -> Dict[str, Any]:
         """Конвертация в словарь для экспорта (JSON/CSV/Excel)"""
         return {
