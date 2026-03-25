@@ -1,38 +1,33 @@
 hackerone:
   api:
-    base_url: "https://api.hackerone.com"
-    version: "v1"
-    timeout: 30
     rate_limit:
-      requests_per_minute: 600
-      delay_between_requests: 0.1
-
+      requests_per_minute: 30
+      delay_between_requests: 2.0
+      max_retries: 3
+      timeout: 30
   scraper:
     base_url: "https://hackerone.com"
     leaderboard_url: "https://hackerone.com/leaderboard"
     hacktivity_url: "https://hackerone.com/hacktivity"
-    delay_between_requests: 2.0
-    max_retries: 3
     scroll_iterations: 5
     wait_timeout: 30
-
-data:
-  limit:
-    hackers: 50
-    reports: 100
-    profiles: 10
-
-  export:
-    formats: ["json", "csv", "excel"]
-    output_dir: "data/processed"
+    default_category: "reputation"
 
 analysis:
   metrics_weights:
     reputation: 0.40
     signal: 0.30
     impact: 0.30
-
   tier_thresholds:
-    elite: 80
-    premium: 60
+    elite: 70
+    premium: 55
     standard: 40
+
+export:
+  formats:
+    - json
+    - csv
+    - excel
+  output_dir: "processed"
+  include_timestamp: true
+  export_excel: true
